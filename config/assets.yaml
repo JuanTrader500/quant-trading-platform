@@ -1,0 +1,14 @@
+# List of assets to extract
+assets:
+  - ticker: "^GSPC"
+    name: "sp500"
+    vol: false
+  - ticker: "^VIX"
+    name: "vix"
+    vol: true
+  - ticker: "^VXN"
+    name: "vxn"
+    vol: true
+  - ticker: "^NDX"
+    name: "nq"
+    vol: false
