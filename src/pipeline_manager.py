@@ -118,7 +118,7 @@ class PipelineManager:
         try:
             extractor = DataExtractor(
                 start_date=self.start_date,
-                data_dir=self.project_root / "data" / "raw",
+                data_dir=Path.home() / "Documents" / "Develops" / "sp500_range_proyect" / "sp500_MLops" / "data" / "raw",
             )
             config  = DataExtractor.load_config(self.config_path)
             results = extractor.download_all(config)
@@ -141,8 +141,8 @@ class PipelineManager:
         logger.info("═" * 60)
         try:
             preparer = DataPreparer(
-                raw_data_dir=self.project_root / "data" / "raw",
-                processed_data_dir=self.project_root / "data" / "processed",
+                raw_data_dir=Path.home() / "Documents" / "Develops" / "sp500_range_proyect" / "sp500_MLops" / "data" / "raw",
+                processed_data_dir=Path.home() / "Documents" / "Develops" / "sp500_range_proyect" / "sp500_MLops" / "data" / "processed",
             )
             results = preparer.run_pipeline()
 

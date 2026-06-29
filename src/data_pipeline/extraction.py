@@ -41,11 +41,23 @@ class DataExtractor:
     """Downloads and persists daily OHLCV data for a list of assets."""
 
     def __init__(self, start_date: str = "2005-01-01", data_dir: str | Path | None = None):
-        self.project_root = Path(__file__).resolve().parents[2]
-        self.start_date   = start_date
-        self.end_date     = datetime.now()
-        self.data_dir     = Path(data_dir) if data_dir else self.project_root / "data" / "raw"
+        self.start_date = start_date
+        self.end_date   = datetime.now()
+        if data_dir:
+            self.data_dir = Path(data_dir)
+        else:
+            project_root  = self._find_project_root(Path(__file__).resolve())
+            self.data_dir = project_root / "data" / "raw"
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"DataExtractor — raw data dir: {self.data_dir}")
+
+    @staticmethod
+    def _find_project_root(start: Path) -> Path:
+        """Walk up until a folder containing both 'src' and 'data' is found."""
+        for parent in [start, *start.parents]:
+            if (parent / "src").is_dir() and (parent / "data").is_dir():
+                return parent
+        return start.parents[2]  # fallback
 
     # ------------------------------------------------------------------
     # Public API

@@ -1,14 +1,31 @@
-# List of assets to extract
+# config/assets.yaml
+# -------------------
+# Master list of assets to extract via yfinance.
+#
+# Fields
+# ------
+#   ticker : yfinance ticker symbol
+#   name   : short identifier used to build the output filename
+#            (must match an entry in extraction.FILENAME_MAP, or a default
+#             "<name>_data_daily.csv" will be used automatically)
+#   vol    : true  → asset is a volatility index (adds avg_hl column)
+#            false → equity / price index (adds pct_move column)
+
 assets:
+  # ── Equity indices ────────────────────────────────────────────────────────
   - ticker: "^GSPC"
     name: "sp500"
     vol: false
-  - ticker: "^VIX"
-    name: "vix"
-    vol: true
-  - ticker: "^VXN"
-    name: "vxn"
-    vol: true
+
   - ticker: "^NDX"
     name: "nq"
     vol: false
+
+  # ── Volatility indices ────────────────────────────────────────────────────
+  - ticker: "^VIX"
+    name: "vix"
+    vol: true
+
+  - ticker: "^VXN"
+    name: "vxn"
+    vol: true
