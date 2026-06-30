@@ -97,7 +97,7 @@ class DataPreparer:
                 df = self._clean(df, vol_prefix=cfg["vol_prefix"])
                 df = self._engineer_features(df, asset_prefix=cfg["name"], vol_prefix=cfg["vol_prefix"])
                 output_path = self.processed_data_dir / cfg["output_file"]
-                df.to_csv(output_path, index=False)
+                df.to_csv(output_path, index=True)  # 'date' is now the index — must be persisted
                 logger.info(f"[{cfg['name'].upper()}] Saved → {output_path}  (shape {df.shape})")
                 results[cfg["name"]] = df
             except FileNotFoundError as exc:
@@ -169,70 +169,104 @@ class DataPreparer:
         vol_prefix: str,
     ) -> pd.DataFrame:
         """
-        Build stationary, leak-free features for one equity+vol pair.
+        Build the feature matrix following the project's Data Dictionary spec:
 
-        Naming convention
-        -----------------
-        All raw prefixed columns are dropped at the end.
-        Engineered columns use plain names (close_log, log_return, …) so the
-        downstream model code is asset-agnostic.
+        Target (y)
+        ----------
+        target = (ln(high) - ln(low)).shift(-1)
+            → Tomorrow's log-range. NOT lagged backwards — this is the future
+              value we want to predict, computed at t and consumed at t-1's row.
+
+        Features (X) — all computed at today (t), no leakage:
+            Block A (equity):  {p}_log_return, {p}_log_range, {p}_body_log,
+                                {p}_upper_wick_log, {p}_lower_wick_log,
+                                {p}_vol_5d, {p}_vol_20d
+            Block B (vol idx): {v}_log_close, {v}_log_range, {v}_log_return
+            Block C (calendar): day_of_week
+
+        `date` becomes the DataFrame index (datetime64), not a column.
+
+        Raw OHLC columns (equity + vol) are dropped at the end — they are
+        metadata used only for intermediate calculations.
         """
         logger.info(f"Engineering features for {asset_prefix.upper()} + {vol_prefix.upper()} …")
         df = df.copy()
 
-        eq_close = f"{asset_prefix}_close"
+        eq_open  = f"{asset_prefix}_open"
         eq_high  = f"{asset_prefix}_high"
         eq_low   = f"{asset_prefix}_low"
+        eq_close = f"{asset_prefix}_close"
 
-        vol_close = f"{vol_prefix}_close"
         vol_high  = f"{vol_prefix}_high"
         vol_low   = f"{vol_prefix}_low"
+        vol_close = f"{vol_prefix}_close"
 
-        # Guard: all required equity prices must be positive
-        required_positive = [c for c in [eq_close, eq_high, eq_low, vol_close, vol_high, vol_low]
+        # Guard: all required prices must be positive (logs undefined otherwise)
+        required_positive = [c for c in [eq_open, eq_high, eq_low, eq_close, vol_high, vol_low, vol_close]
                              if c in df.columns]
         df = df[(df[required_positive] > 0).all(axis=1)]
 
         # ----------------------------------------------------------------
-        # 1. Log prices
+        # Target (y) — tomorrow's log-range. Computed at t, shifted -1 so
+        # that today's row holds the range that will occur tomorrow.
         # ----------------------------------------------------------------
-        df["close_log"] = np.log(df[eq_close])
-        df["high_log"]  = np.log(df[eq_high])
-        df["low_log"]   = np.log(df[eq_low])
+        df["target"] = (np.log(df[eq_high]) - np.log(df[eq_low])).shift(-1)
 
         # ----------------------------------------------------------------
-        # 2. Targets  (no lag — these ARE what the model predicts)
+        # Block A — equity features (today, t)
         # ----------------------------------------------------------------
-        df["target_high"] = df["high_log"]  - df["close_log"].shift(1)   # log-distance to today's high
-        df["target_low"]  = df["low_log"]   - df["close_log"].shift(1)   # log-distance to today's low
-        df["log_target"]  = df["close_log"].diff()                        # daily log-return
+        log_close = np.log(df[eq_close])
+        log_open  = np.log(df[eq_open])
+        log_high  = np.log(df[eq_high])
+        log_low   = np.log(df[eq_low])
+
+        df[f"{asset_prefix}_log_return"]      = log_close - log_close.shift(1)
+        df[f"{asset_prefix}_log_range"]       = log_high - log_low
+        df[f"{asset_prefix}_body_log"]        = log_close - log_open
+        df[f"{asset_prefix}_upper_wick_log"]  = log_high - np.log(np.maximum(df[eq_open], df[eq_close]))
+        df[f"{asset_prefix}_lower_wick_log"]  = np.log(np.minimum(df[eq_open], df[eq_close])) - log_low
+        df[f"{asset_prefix}_vol_5d"]          = df[f"{asset_prefix}_log_return"].rolling(5).std()
+        df[f"{asset_prefix}_vol_10d"]         = df[f"{asset_prefix}_log_return"].rolling(10).std()
 
         # ----------------------------------------------------------------
-        # 3. Lagged equity features  (t-1 → no leakage)
+        # Block B — volatility index features (today, t)
         # ----------------------------------------------------------------
-        df["log_return"]      = df["close_log"].diff().shift(1)
-        df["close_log_lag1"]  = df["close_log"].shift(1)
-        df["Upper_Wick_lag1"] = (df["high_log"]  - df["close_log"]).shift(1)
-        df["Lower_Wick_lag1"] = (df["close_log"] - df["low_log"]).shift(1)
+        log_vol_close = np.log(df[vol_close])
+        df[f"{vol_prefix}_log_close"]  = log_vol_close
+        df[f"{vol_prefix}_log_range"]  = np.log(df[vol_high]) - np.log(df[vol_low])
+        df[f"{vol_prefix}_log_return"] = log_vol_close - log_vol_close.shift(1)
 
         # ----------------------------------------------------------------
-        # 4. Lagged volatility features
+        # Block C — calendar effects
         # ----------------------------------------------------------------
-        if vol_close in df.columns:
-            # Normalised daily vol: VIX-equivalent / (100 * sqrt(252))
-            df["Vol_Diaria_lag1"] = (df[vol_close] / (100 * np.sqrt(252))).shift(1)
-
-        if vol_high in df.columns and vol_low in df.columns:
-            # Log range of the volatility index
-            df["Vol_Rango_Log_lag1"] = (np.log(df[vol_high]) - np.log(df[vol_low])).shift(1)
+        df["day_of_week"] = df["date"].dt.dayofweek
 
         # ----------------------------------------------------------------
-        # 5. Drop raw prefixed columns (prevent leakage / keep frame lean)
+        # Set date as the index (required by the spec)
         # ----------------------------------------------------------------
-        raw_prefixes = (asset_prefix, vol_prefix)
-        cols_to_drop = [c for c in df.columns if any(c.startswith(f"{p}_") for p in raw_prefixes)]
-        df = df.drop(columns=cols_to_drop, errors="ignore").dropna()
+        df = df.set_index("date")
 
+        # ----------------------------------------------------------------
+        # Drop raw OHLC metadata columns (equity + vol) — never feed these
+        # to the model, they cause extrapolation errors / leakage.
+        # Anything still carrying the asset/vol prefix that ISN'T one of
+        # our engineered features is raw metadata and gets dropped too
+        # (e.g. volume, pct_move, avg_hl).
+        # ----------------------------------------------------------------
+        engineered_cols = {
+            f"{asset_prefix}_log_return", f"{asset_prefix}_log_range", f"{asset_prefix}_body_log",
+            f"{asset_prefix}_upper_wick_log", f"{asset_prefix}_lower_wick_log",
+            f"{asset_prefix}_vol_5d", f"{asset_prefix}_vol_10d",
+            f"{vol_prefix}_log_close", f"{vol_prefix}_log_range", f"{vol_prefix}_log_return",
+        }
+        cols_to_drop = [
+            c for c in df.columns
+            if (c.startswith(f"{asset_prefix}_") or c.startswith(f"{vol_prefix}_"))
+            and c not in engineered_cols
+        ]
+        df = df.drop(columns=cols_to_drop, errors="ignore")
+
+        df = df.dropna()
         logger.info(f"Feature engineering complete → shape {df.shape}")
         return df
 
