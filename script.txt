@@ -1,3 +1,0 @@
-export PYTHONPATH=$PYTHONPATH:$(pwd) && \
-python3 src/data_pipeline/extraction.py && \
-python3 src/features/preparation.py
