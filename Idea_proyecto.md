@@ -4,7 +4,7 @@ Este proyecto consiste en el desarrollo de un sistema de trading cuantitativo h�
 
 ---
 
-## 📌 1. Plan de Trabajo (Fases de Desarrollo)
+## 1. Plan de Trabajo (Fases de Desarrollo)
 
 ### Fase 1: Arquitectura de Datos y Blindaje (Anti-Data Leakage)
 - [ ] **Configuración del Index:** Asegurar que el dataset (`2005 - 2026`) use `Date` como un `DatetimeIndex` estricto en Pandas.
