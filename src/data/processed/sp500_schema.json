@@ -1,0 +1,19 @@
+{
+  "dataset": "sp500",
+  "schema_version": "1.0.0",
+  "columns": [
+    "sp500_log_return",
+    "sp500_log_range",
+    "sp500_body_log",
+    "sp500_upper_wick_log",
+    "sp500_lower_wick_log",
+    "sp500_vol_5d",
+    "sp500_vol_10d",
+    "vix_log_close",
+    "vix_log_range",
+    "vix_log_return",
+    "day_of_week",
+    "target"
+  ],
+  "hash": "db93aec9f8ef"
+}
