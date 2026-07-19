@@ -68,26 +68,6 @@ python3 src/features/preparation.py
 
 ## Project Structure
 
-```
-├── config/
-│   └── assets.yaml              # Asset ticker configuration
-├── data/
-│   ├── raw/                     # Raw CSV from Yahoo Finance
-│   │   ├── sp500_df_data_daily.csv
-│   │   └── vix_2026_data_daily.csv
-│   └── processed/               # Engineered features
-│       └── processed_features.csv
-├── src/
-│   ├── data_pipeline/
-│   │   └── extraction.py        # Yahoo Finance downloader
-│   ├── features/
-│   │   └── preparation.py       # Feature engineering & cleaning
-│   └── pipeline_manager.py      # Pipeline orchestrator
-├── tests/
-│   └── test_pipeline.py         # Unit tests
-├── requirements.txt
-└── README.md
-```
 
 ## Model Training (WIP)
 
