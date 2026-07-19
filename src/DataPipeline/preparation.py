@@ -83,20 +83,13 @@ class DataPreparer:
     # Limpieza
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Limpieza (DESACTIVADA PARA MODELADO DE VOLATILIDAD)
+    # ------------------------------------------------------------------
+
     def _clean(self, df: pd.DataFrame, vol_prefix: str, train_cutoff: str = "2020-12-31") -> pd.DataFrame:
-        vol_high_col = f"{vol_prefix}_high"
-        if vol_high_col not in df.columns:
-            return df
-
-        df = df.copy().sort_values("date")
-        train_mask = df["date"] <= train_cutoff
-        q1, q3 = df.loc[train_mask, vol_high_col].quantile([0.25, 0.75])
-        iqr = q3 - q1
-        lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-
-        before = len(df)
-        df = df[(df[vol_high_col] >= lo) & (df[vol_high_col] <= hi)].reset_index(drop=True)
-        logger.info(f"Outliers en {vol_high_col}: {before:,} → {len(df):,} filas")
+        # Devolvemos el DataFrame intacto sin aplicar ningún filtro IQR
+        logger.info("Filtro de outliers desactivado. Pasando toda la data cruda al pipeline.")
         return df
 
     # ------------------------------------------------------------------
