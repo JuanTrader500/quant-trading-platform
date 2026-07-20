@@ -1,5 +1,4 @@
-name: MLOps Pipeline CI
-
+name: MLOps Pipeline 
 on:
   push:
     branches: [ main, master ]
@@ -29,4 +28,4 @@ jobs:
       - name: Run Unit Tests
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)/src # Corregido: Apuntando a la carpeta de código 'src'
-          pytest tests/model_pipeline/test_retraining_pipeline.py # Corregido: 'tests' en plural
+          pytest tests/model_pipeline/test_retraining_pipeline.py # Corregido: 'tests' en plural 
