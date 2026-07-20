@@ -1,0 +1,36 @@
+{
+    "date": "2026-07-20",
+    "rf_params": {
+        "n_estimators": 300,
+        "max_depth": 8,
+        "min_samples_leaf": 5
+    },
+    "garch_calibration": [
+        1.285418111489617,
+        -0.0007115738081864996
+    ],
+    "metrics": {
+        "rf": {
+            "rmse": 0.002238087469659216,
+            "mae": 0.001643281086094437,
+            "bias": {
+                "bias_medio": 0.0015133584672221555,
+                "pct_subestimado": 16.666666666666664,
+                "pct_sobreestimado": 83.33333333333334,
+                "magnitud_media_subestimacion": 0.00038976785661684436,
+                "magnitud_media_sobreestimacion": 0.001893983731989956
+            }
+        },
+        "garch": {
+            "rmse": 0.0020328706269973616,
+            "mae": 0.0017380461233561853,
+            "bias": {
+                "bias_medio": 0.0017380461233561853,
+                "pct_subestimado": 0.0,
+                "pct_sobreestimado": 100.0,
+                "magnitud_media_subestimacion": 0.0,
+                "magnitud_media_sobreestimacion": 0.0017380461233561853
+            }
+        }
+    }
+}
