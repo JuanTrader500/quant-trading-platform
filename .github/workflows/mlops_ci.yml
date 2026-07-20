@@ -1,0 +1,31 @@
+name: MLOps Pipeline 
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 2 28 * *' # Ejecución automática mensual para validación de integridad
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5 # Actualizado a v5 para mejor caché
+        with:
+          python-version: '3.11' # Corregido: Mismo entorno estable que el pipeline de datos
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pandas numpy scikit-learn arch pytest joblib
+
+      - name: Run Unit Tests
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/src # Corregido: Apuntando a la carpeta de código 'src'
+          pytest tests/model_pipeline/test_retraining_pipeline.py # Corregido: 'tests' en plural 

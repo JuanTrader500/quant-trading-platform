@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from DataPipeline.feature_schema import FEATURE_COLUMNS
-from DataPipeline.preparation import DataPreparer
+from DataPipeline.preparation import DataPreparer, DATASET_CONFIGS
 
 
 def test_run_pipeline_missing_raw_files_returns_empty_dict(tmp_path):
@@ -71,10 +71,9 @@ def test_target_is_next_day_log_range_no_leakage():
     })
     merged = eq.merge(vol, on="date")
 
-    preparer = DataPreparer.__new__(DataPreparer)  # no necesita rutas para este cálculo puro
+    preparer = DataPreparer.__new__(DataPreparer)
     engineered = preparer._engineer_features(merged, asset_prefix="sp500", vol_prefix="vix")
 
-    # Reconstruir manualmente el target esperado antes del dropna/index-set
     expected_target = (np.log(merged["sp500_high"]) - np.log(merged["sp500_low"])).shift(-1)
     expected_target.index = merged["date"]
     expected_target = expected_target.reindex(engineered.index)
@@ -82,14 +81,36 @@ def test_target_is_next_day_log_range_no_leakage():
     pd.testing.assert_series_equal(engineered["target"], expected_target, check_names=False)
 
 
-def test_iqr_outlier_removal_uses_only_training_slice(equity_and_vol_csvs):
-    preparer = DataPreparer(raw_data_dir=equity_and_vol_csvs, processed_data_dir=equity_and_vol_csvs / "out")
-    raw = pd.read_csv(equity_and_vol_csvs / "sp500_data_daily.csv", parse_dates=["date"])
-    raw = raw.rename(columns={c: f"sp500_{c}" for c in raw.columns if c != "date"})
-    vol = pd.read_csv(equity_and_vol_csvs / "vix_data_daily.csv", parse_dates=["date"])
-    vol = vol.rename(columns={c: f"vix_{c}" for c in vol.columns if c != "date"})
-    merged = raw.merge(vol, on="date")
+def test_no_outlier_filtering_step_in_pipeline(equity_and_vol_csvs, tmp_path):
+    """Decisión de diseño: el pipeline no filtra outliers.
+    Verifica que todos los días con precios positivos lleguen al dataset
+    procesado — ningún registro se descarta por criterios estadísticos."""
+    processed_dir = tmp_path / "processed"
+    preparer = DataPreparer(raw_data_dir=equity_and_vol_csvs, processed_data_dir=processed_dir)
+    
+    # Procesamos solo el asset SP500 para simplificar la validación de conteo
+    results = preparer.run_pipeline(datasets=["sp500"])
+    
+    # Cargar datos crudos para comparar
+    cfg = next(c for c in DATASET_CONFIGS if c["name"] == "sp500")
+    raw = pd.read_csv(equity_and_vol_csvs / cfg["equity_file"], parse_dates=["date"])
+    
+    # Usamos solo el df de equity para evitar el problema de sufijos _x / _y del merge
+    positive_rows = (raw[["open", "high", "low", "close"]] > 0).all(axis=1).sum()
 
-    cleaned = preparer._clean(merged, vol_prefix="vix", train_cutoff="2024-01-10")
-    assert len(cleaned) <= len(merged)
-    assert set(cleaned.columns) == set(merged.columns)
+    # El dataset procesado pierde solo las filas iniciales de las ventanas
+    # rolling (vol_10d necesita 10 días) y la última fila (target es NaN).
+    rolling_warmup = 10
+    target_tail = 1
+    min_expected = positive_rows - rolling_warmup - target_tail
+    
+    assert len(results["sp500"]) >= min_expected
+
+
+def test_no_clean_method_exists():
+    """Guarda de regresión: _clean fue eliminado intencionalmente.
+    Si alguien lo reintroduce sin querer, este test falla de inmediato."""
+    assert not hasattr(DataPreparer, "_clean"), (
+        "_clean fue eliminado deliberadamente (ver docstring de preparation.py). "
+        "No reintroducir sin revisar la decisión de diseño documentada."
+    )

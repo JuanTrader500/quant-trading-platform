@@ -7,6 +7,18 @@ data leakage). Ver Readme del proyecto para la justificación de cada
 variable.
 RNF12: al final de cada corrida, fuerza el orden de columnas del
 esquema versionado y persiste su manifiesto (feature_schema.py).
+
+Decisión de diseño — sin filtrado de outliers (IQR)
+----------------------------------------------------
+Versiones anteriores aplicaban un filtro IQR sobre `vix_high` antes del
+feature engineering. Se retiró deliberadamente: en un dataset cuyo target
+ES la volatilidad futura, los días que el filtro IQR marcaba como
+"atípicos" son precisamente los eventos de alta volatilidad que el modelo
+necesita ver para aprender a anticiparlos. Filtrarlos no limpia ruido,
+sesga el dataset hacia una falsa calma y le resta al modelo la señal más
+valiosa que tiene. Se evaluó entrenar con y sin el filtro; el error de
+validación se mantuvo estable en ambos casos, así que se conserva la
+serie completa.
 """
 
 from pathlib import Path
@@ -37,14 +49,17 @@ class DataPreparer:
         self.processed_data_dir = Path(processed_data_dir) if processed_data_dir else PROCESSED_DATA_DIR
         self.processed_data_dir.mkdir(parents=True, exist_ok=True)
 
-    def run_pipeline(self) -> dict[str, pd.DataFrame]:
+    def run_pipeline(self, datasets: list[str] | None = None) -> dict[str, pd.DataFrame]:
         results: dict[str, pd.DataFrame] = {}
-        for cfg in DATASET_CONFIGS:
+        
+        # Si se especifican datasets, filtramos la configuración; si no, procesamos todos (RNF11).
+        configs_to_process = [cfg for cfg in DATASET_CONFIGS if datasets is None or cfg["name"] in datasets]
+
+        for cfg in configs_to_process:
             name = cfg["name"]
             logger.info(f"[{name.upper()}] Iniciando preparación …")
             try:
                 df = self._load_and_merge(cfg)
-                df = self._clean(df, vol_prefix=cfg["vol_prefix"])
                 df = self._engineer_features(df, asset_prefix=name, vol_prefix=cfg["vol_prefix"])
                 df = enforce_schema(df, name)
 
@@ -78,26 +93,6 @@ class DataPreparer:
         vol = vol.rename(columns={c: f"{cfg['vol_prefix']}_{c}" for c in vol.columns if c != "date"})
 
         return eq.merge(vol, on="date", how="inner").sort_values("date").reset_index(drop=True)
-
-    # ------------------------------------------------------------------
-    # Limpieza
-    # ------------------------------------------------------------------
-
-    def _clean(self, df: pd.DataFrame, vol_prefix: str, train_cutoff: str = "2020-12-31") -> pd.DataFrame:
-        vol_high_col = f"{vol_prefix}_high"
-        if vol_high_col not in df.columns:
-            return df
-
-        df = df.copy().sort_values("date")
-        train_mask = df["date"] <= train_cutoff
-        q1, q3 = df.loc[train_mask, vol_high_col].quantile([0.25, 0.75])
-        iqr = q3 - q1
-        lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-
-        before = len(df)
-        df = df[(df[vol_high_col] >= lo) & (df[vol_high_col] <= hi)].reset_index(drop=True)
-        logger.info(f"Outliers en {vol_high_col}: {before:,} → {len(df):,} filas")
-        return df
 
     # ------------------------------------------------------------------
     # Feature engineering (RF02 / RF03 — ver Readme para justificación)
