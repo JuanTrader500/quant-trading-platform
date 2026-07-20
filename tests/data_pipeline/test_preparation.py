@@ -92,7 +92,7 @@ def test_no_outlier_filtering_step_in_pipeline(equity_and_vol_csvs, tmp_path):
     raw = pd.read_csv(equity_and_vol_csvs / "sp500_data_daily.csv", parse_dates=["date"])
     vol = pd.read_csv(equity_and_vol_csvs / "vix_data_daily.csv", parse_dates=["date"])
     merged = raw.merge(vol, on="date", how="inner")
-    positive_rows = (merged[["open", "high", "low", "close"]] > 0).all(axis=1).sum()
+    positive_rows = (merged[["sp500_open", "sp500_high", "sp500_low", "sp500_close"]] > 0).all(axis=1).sum()
 
     # El dataset procesado pierde solo las filas iniciales de las ventanas
     # rolling (vol_10d necesita 10 días) y la última fila (target es NaN
