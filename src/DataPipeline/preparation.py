@@ -49,9 +49,13 @@ class DataPreparer:
         self.processed_data_dir = Path(processed_data_dir) if processed_data_dir else PROCESSED_DATA_DIR
         self.processed_data_dir.mkdir(parents=True, exist_ok=True)
 
-    def run_pipeline(self) -> dict[str, pd.DataFrame]:
+    def run_pipeline(self, datasets: list[str] | None = None) -> dict[str, pd.DataFrame]:
         results: dict[str, pd.DataFrame] = {}
-        for cfg in DATASET_CONFIGS:
+        
+        # Si se especifican datasets, filtramos la configuración; si no, procesamos todos (RNF11).
+        configs_to_process = [cfg for cfg in DATASET_CONFIGS if datasets is None or cfg["name"] in datasets]
+
+        for cfg in configs_to_process:
             name = cfg["name"]
             logger.info(f"[{name.upper()}] Iniciando preparación …")
             try:

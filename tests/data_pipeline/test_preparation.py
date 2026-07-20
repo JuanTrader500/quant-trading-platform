@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from DataPipeline.feature_schema import FEATURE_COLUMNS
-from DataPipeline.preparation import DataPreparer
+from DataPipeline.preparation import DataPreparer, DATASET_CONFIGS
 
 
 def test_run_pipeline_missing_raw_files_returns_empty_dict(tmp_path):
@@ -87,19 +87,23 @@ def test_no_outlier_filtering_step_in_pipeline(equity_and_vol_csvs, tmp_path):
     procesado — ningún registro se descarta por criterios estadísticos."""
     processed_dir = tmp_path / "processed"
     preparer = DataPreparer(raw_data_dir=equity_and_vol_csvs, processed_data_dir=processed_dir)
-    results = preparer.run_pipeline()
-
-    raw = pd.read_csv(equity_and_vol_csvs / "sp500_data_daily.csv", parse_dates=["date"])
-    vol = pd.read_csv(equity_and_vol_csvs / "vix_data_daily.csv", parse_dates=["date"])
-    merged = raw.merge(vol, on="date", how="inner")
-    positive_rows = (merged[["sp500_open", "sp500_high", "sp500_low", "sp500_close"]] > 0).all(axis=1).sum()
+    
+    # Procesamos solo el asset SP500 para simplificar la validación de conteo
+    results = preparer.run_pipeline(datasets=["sp500"])
+    
+    # Cargar datos crudos para comparar
+    cfg = next(c for c in DATASET_CONFIGS if c["name"] == "sp500")
+    raw = pd.read_csv(equity_and_vol_csvs / cfg["equity_file"], parse_dates=["date"])
+    
+    # Usamos solo el df de equity para evitar el problema de sufijos _x / _y del merge
+    positive_rows = (raw[["open", "high", "low", "close"]] > 0).all(axis=1).sum()
 
     # El dataset procesado pierde solo las filas iniciales de las ventanas
-    # rolling (vol_10d necesita 10 días) y la última fila (target es NaN
-    # al no tener mañana). Todo lo demás debe estar presente.
+    # rolling (vol_10d necesita 10 días) y la última fila (target es NaN).
     rolling_warmup = 10
     target_tail = 1
     min_expected = positive_rows - rolling_warmup - target_tail
+    
     assert len(results["sp500"]) >= min_expected
 
 
