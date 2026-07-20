@@ -7,6 +7,18 @@ data leakage). Ver Readme del proyecto para la justificación de cada
 variable.
 RNF12: al final de cada corrida, fuerza el orden de columnas del
 esquema versionado y persiste su manifiesto (feature_schema.py).
+
+Decisión de diseño — sin filtrado de outliers (IQR)
+----------------------------------------------------
+Versiones anteriores aplicaban un filtro IQR sobre `vix_high` antes del
+feature engineering. Se retiró deliberadamente: en un dataset cuyo target
+ES la volatilidad futura, los días que el filtro IQR marcaba como
+"atípicos" son precisamente los eventos de alta volatilidad que el modelo
+necesita ver para aprender a anticiparlos. Filtrarlos no limpia ruido,
+sesga el dataset hacia una falsa calma y le resta al modelo la señal más
+valiosa que tiene. Se evaluó entrenar con y sin el filtro; el error de
+validación se mantuvo estable en ambos casos, así que se conserva la
+serie completa.
 """
 
 from pathlib import Path
@@ -44,7 +56,6 @@ class DataPreparer:
             logger.info(f"[{name.upper()}] Iniciando preparación …")
             try:
                 df = self._load_and_merge(cfg)
-                df = self._clean(df, vol_prefix=cfg["vol_prefix"])
                 df = self._engineer_features(df, asset_prefix=name, vol_prefix=cfg["vol_prefix"])
                 df = enforce_schema(df, name)
 
@@ -78,19 +89,6 @@ class DataPreparer:
         vol = vol.rename(columns={c: f"{cfg['vol_prefix']}_{c}" for c in vol.columns if c != "date"})
 
         return eq.merge(vol, on="date", how="inner").sort_values("date").reset_index(drop=True)
-
-    # ------------------------------------------------------------------
-    # Limpieza
-    # ------------------------------------------------------------------
-
-    # ------------------------------------------------------------------
-    # Limpieza (DESACTIVADA PARA MODELADO DE VOLATILIDAD)
-    # ------------------------------------------------------------------
-
-    def _clean(self, df: pd.DataFrame, vol_prefix: str, train_cutoff: str = "2020-12-31") -> pd.DataFrame:
-        # Devolvemos el DataFrame intacto sin aplicar ningún filtro IQR
-        logger.info("Filtro de outliers desactivado. Pasando toda la data cruda al pipeline.")
-        return df
 
     # ------------------------------------------------------------------
     # Feature engineering (RF02 / RF03 — ver Readme para justificación)

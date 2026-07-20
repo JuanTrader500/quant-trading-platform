@@ -49,14 +49,12 @@ PipelineManager.execute()
 ```
 
 ## Uso
-
-```bash
-# Como módulo (recomendado, respeta imports relativos del paquete)
+# Desde src/ (recomendado para producción/cron)
 python -m DataPipeline.pipeline_manager
 
-# Etapas individuales, para debugging o cron jobs separados
-python -m DataPipeline.extraction
-python -m DataPipeline.preparation
+# Directamente dentro de la carpeta (como lo probaste tú)
+cd src/DataPipeline
+python pipeline_manager.py
 ```
 
 Desde Django (o cualquier orquestador), basta con importar la clase:
