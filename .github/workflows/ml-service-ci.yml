@@ -27,5 +27,5 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)/src # Corregido: Apuntando a la carpeta de código 'src'
-          pytest tests/model_pipeline/test_retraining_pipeline.py # Corregido: 'tests' en plural 
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/ml_service
+          pytest ml_service/tests/test_retraining_pipeline.py 
