@@ -21,18 +21,18 @@ sp500_MLops/
 
 from pathlib import Path
 
-PACKAGE_DIR = Path(__file__).resolve().parent          # .../src/DataPipeline
-SRC_DIR = PACKAGE_DIR.parent                            # .../src
+PACKAGE_DIR = Path(__file__).resolve().parent          # .../data_service/pipeline
+SRC_DIR = PACKAGE_DIR.parent                            # .../data_service
 PROJECT_ROOT = SRC_DIR.parent                            # .../sp500_MLops
 
-DATA_DIR = SRC_DIR / "data"
+DATA_DIR = SRC_DIR / "pipeline" / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
-MODELS_DIR = PROJECT_ROOT / "models" / "artifacts"
+MODELS_DIR = PROJECT_ROOT / "ml_service" / "artifacts"
 MODEL_METADATA_PATH = MODELS_DIR / "model_metadata.pkl"
 
-LOG_DIR = PROJECT_ROOT / "logs"
+LOG_DIR = PROJECT_ROOT / "logs" / "data_service"
 LOG_FILE = LOG_DIR / "data_pipeline.log"
 
 ASSETS_CONFIG_PATH = PACKAGE_DIR / "config" / "assets.yaml"

@@ -19,10 +19,10 @@ from .validation_utils import (
 
 # Configuración de rutas absolutas
 ROOT_DIR = Path("/home/juan500/Documents/Develops/sp500_range_proyect/sp500_MLops")
-DATA_PROCESSED_PATH = ROOT_DIR / "src" / "data" / "processed" / "processed_sp500.csv"
-PIPELINE_MANAGER_PATH = ROOT_DIR / "src" / "DataPipeline" / "pipeline_manager.py"
-ARTIFACTS_ROOT = ROOT_DIR / "models" / "artifacts"
-LOG_FILE = ROOT_DIR / "logs" / "retraining.log"
+DATA_PROCESSED_PATH = ROOT_DIR / "data_service" / "pipeline" / "data" / "processed" / "processed_sp500.csv"
+PIPELINE_MANAGER_PATH = ROOT_DIR / "data_service" / "pipeline" / "pipeline_manager.py"
+ARTIFACTS_ROOT = ROOT_DIR / "ml_service" / "artifacts"
+LOG_FILE = ROOT_DIR / "logs" / "ml_service" / "retraining.log"
 
 # Logging
 logging.basicConfig(
@@ -44,8 +44,8 @@ class RetrainManager:
         try:
             # Ejecutar como módulo para mantener consistencia de rutas
             result = subprocess.run(
-                [sys.executable, "-m", "DataPipeline.pipeline_manager"],
-                cwd=ROOT_DIR / "src",
+                [sys.executable, "-m", "data_service.pipeline.pipeline_manager"],
+                cwd=ROOT_DIR / "data_service",
                 capture_output=True, text=True, check=True
             )
             logger.info("DataPipeline completado exitosamente.")
