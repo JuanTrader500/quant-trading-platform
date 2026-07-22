@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # data_service:
+  #   build: ./data_service
+  #   env_file: .env
+  #   volumes:
+  #     - ./data_service/pipeline/data:/app/pipeline/data
+  #   networks:
+  #     - sp500_network
+
+  # ml_service:
+  #   build: ./ml_service
+  #   env_file: .env
+  #   volumes:
+  #     - ./ml_service/artifacts:/app/artifacts
+  #   networks:
+  #     - sp500_network
+
+  # web_service:
+  #   build: ./web_service
+  #   env_file: .env
+  #   networks:
+  #     - sp500_network
+
+networks:
+  sp500_network:
+    driver: bridge

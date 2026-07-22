@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pandas
+numpy
+yfinance
+pyyaml
+joblib
+python-dateutil
