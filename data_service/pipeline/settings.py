@@ -1,44 +1,42 @@
 """
 settings.py
 -----------
-Fuente única de verdad para rutas y constantes del DataPipeline.
+Fuente única de verdad para configuración del Data Service: rutas de
+logs, conexión a base de datos y parámetros del pipeline.
 
-Desacopla la ubicación física de los datos y artefactos del código
-(RNF10), de modo que extraction / validation / preparation nunca
-hardcodean rutas: todas se resuelven aquí.
-
-Layout esperado
-----------------
-sp500_MLops/
-├── src/
-│   ├── DataPipeline/      <- este paquete
-│   └── data/
-│       ├── raw/
-│       └── processed/
-└── models/
-    └── artifacts/
+Todo valor sensible o dependiente del entorno (credenciales de base de
+datos, versión del pipeline desplegado) se lee de variables de entorno
+vía `.env` — nunca se hardcodea en el código (RNF06). Copia
+`.env.example` a `.env` en la raíz de `data_service/` y completa los
+valores reales; `.env` nunca debe subirse al repositorio.
 """
 
+import os
 from pathlib import Path
 
-PACKAGE_DIR = Path(__file__).resolve().parent          # .../data_service/pipeline
-SRC_DIR = PACKAGE_DIR.parent                            # .../data_service
-PROJECT_ROOT = SRC_DIR.parent                            # .../sp500_MLops
+from dotenv import load_dotenv
 
-DATA_DIR = SRC_DIR / "pipeline" / "data"
-RAW_DATA_DIR = DATA_DIR / "raw"
-PROCESSED_DATA_DIR = DATA_DIR / "processed"
+load_dotenv()
 
-MODELS_DIR = PROJECT_ROOT / "ml_service" / "artifacts"
-MODEL_METADATA_PATH = MODELS_DIR / "model_metadata.pkl"
+PACKAGE_DIR = Path(__file__).resolve().parent  # .../data_service/pipeline
+SERVICE_DIR = PACKAGE_DIR.parent  # .../data_service
+PROJECT_ROOT = SERVICE_DIR.parent  # raíz del monorepo (si aplica)
 
-LOG_DIR = PROJECT_ROOT / "logs" / "data_service"
+# Conexión a PostgreSQL/TimescaleDB. Se valida (con error explícito) la
+# primera vez que se usa, en db.get_engine() — no aquí, para que
+# importar settings.py nunca falle por falta de configuración.
+DATABASE_URL: str | None = os.getenv("DATABASE_URL")
+
+# Directorio y archivo de logs (RF06).
+LOG_DIR = Path(os.getenv("DATA_SERVICE_LOG_DIR", PROJECT_ROOT / "logs" / "data_service"))
 LOG_FILE = LOG_DIR / "data_pipeline.log"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-ASSETS_CONFIG_PATH = PACKAGE_DIR / "config" / "assets.yaml"
+# Fecha desde la que se descarga histórico si un ticker no tiene datos
+# todavía en raw_ohlc (primera corrida).
+DEFAULT_START_DATE = os.getenv("DEFAULT_START_DATE", "2005-01-01")
 
-RETRAINING_INTERVAL_WEEKS = 1
-DEFAULT_START_DATE = "2005-01-01"
-
-for _dir in (RAW_DATA_DIR, PROCESSED_DATA_DIR, MODELS_DIR, LOG_DIR):
-    _dir.mkdir(parents=True, exist_ok=True)
+# Identificador de versión de este pipeline (commit/tag de git,
+# inyectado por CI/CD), usado en ingestion_log.pipeline_version para
+# trazabilidad de qué código produjo cada corrida (caso de uso 5).
+PIPELINE_VERSION = os.getenv("PIPELINE_VERSION", "unknown")

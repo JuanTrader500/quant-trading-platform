@@ -1,59 +1,41 @@
 """
 pipeline_manager.py
 --------------------
-Orquesta extracción + preparación y decide si un reentrenamiento es
-necesario.
+Orquesta extracción + preparación del Data Service.
 
 RNF10: no depende de Django ni de ningún componente web — se ejecuta
-como script o módulo independiente, o puede invocarse desde un
-management command / scheduler sin acoplarse a las vistas.
+como script, como módulo independiente, o desde un endpoint del propio
+Data Service (FastAPI, ver app/main.py) sin acoplarse a otras capas.
+
+Nota de diseño: a diferencia de versiones anteriores del proyecto,
+este orquestador ya NO decide "si hace falta reentrenar" leyendo
+metadata de un modelo de ML. Esa decisión pertenece al ML Service, que
+vive en otro proceso con su propio Model Registry (MLflow) — leer sus
+artefactos desde aquí violaría el aislamiento de datos por servicio
+(RNF17). Este módulo siempre corre extracción + preparación cuando se
+invoca; la periodicidad (ej. diaria) se define fuera de este archivo,
+vía cron, un scheduler o un CronJob de Kubernetes que llame a
+`PipelineManager().execute()` o al endpoint POST /pipeline/run.
 
 Uso
 ---
-    python -m DataPipeline.pipeline_manager
+    python -m pipeline.pipeline_manager
 """
-
-from datetime import datetime
-from pathlib import Path
-
-import joblib
-from dateutil.relativedelta import relativedelta
 
 from .extraction import DataExtractor
 from .logging_config import get_logger
 from .preparation import DataPreparer
-from .settings import DEFAULT_START_DATE, MODEL_METADATA_PATH, RETRAINING_INTERVAL_WEEKS
 
 logger = get_logger(__name__)
 
 
 class PipelineManager:
-    """Punto de entrada único: decide si correr el pipeline y lo ejecuta."""
-
-    def __init__(self, model_metadata_path: str | Path | None = None, start_date: str = DEFAULT_START_DATE):
-        self.model_metadata_path = Path(model_metadata_path) if model_metadata_path else MODEL_METADATA_PATH
-        self.start_date = start_date
-
-    def check_retraining_needed(self) -> bool:
-        if not self.model_metadata_path.exists():
-            logger.info("No existe metadata de modelo → se requiere reentrenamiento.")
-            return True
-        try:
-            metadata = joblib.load(self.model_metadata_path)
-            last_trained = datetime.strptime(metadata["last_trained"], "%Y-%m-%d")
-        except Exception as exc:
-            logger.warning(f"No se pudo leer la metadata ({exc}) → se requiere reentrenamiento.")
-            return True
-
-        deadline = last_trained + relativedelta(weeks=RETRAINING_INTERVAL_WEEKS)
-        if datetime.now() >= deadline:
-            logger.info(f"Modelo del {last_trained.date()} supera {RETRAINING_INTERVAL_WEEKS} semana(s) → reentrenar.")
-            return True
-
-        logger.info(f"Modelo vigente (entrenado {last_trained.date()}) → se omite el pipeline.")
-        return False
+    """Punto de entrada único: corre extracción y luego preparación."""
 
     def run_full_pipeline(self) -> bool:
+        """Corre las dos etapas en orden. Se detiene en la primera que
+        falle (la preparación depende de que la extracción haya
+        escrito datos frescos en raw_ohlc)."""
         logger.info("Iniciando pipeline de datos …")
 
         if not self._run_extraction():
@@ -66,14 +48,10 @@ class PipelineManager:
         logger.info("Pipeline de datos completado exitosamente.")
         return True
 
-    def execute(self) -> None:
-        """Punto de entrada: solo corre el pipeline si hace falta reentrenar."""
-        if not self.check_retraining_needed():
-            logger.info("Nada que hacer — se usa el modelo vigente para inferencia.")
-            return
-
-        if not self.run_full_pipeline():
-            logger.error("Pipeline falló — se conserva el modelo vigente para inferencia (RNF04).")
+    def execute(self) -> bool:
+        """Alias explícito, pensado para ser llamado por un scheduler
+        externo o por el endpoint POST /pipeline/run del servicio."""
+        return self.run_full_pipeline()
 
     # ------------------------------------------------------------------
     # Etapas internas
@@ -81,8 +59,7 @@ class PipelineManager:
 
     def _run_extraction(self) -> bool:
         try:
-            extractor = DataExtractor(start_date=self.start_date)
-            results = extractor.download_all(DataExtractor.load_config())
+            results = DataExtractor().download_all()
             failed = [name for name, ok in results.items() if not ok]
             if failed:
                 logger.error(f"Activos que fallaron: {failed}")
@@ -98,7 +75,7 @@ class PipelineManager:
             if not results:
                 logger.error("La preparación no produjo ningún dataset.")
                 return False
-            logger.info(f"Datasets preparados: {list(results.keys())}")
+            logger.info(f"Pares procesados: {list(results.keys())}")
             return True
         except Exception as exc:
             logger.error(f"Preparación lanzó una excepción: {exc}", exc_info=True)
@@ -106,4 +83,5 @@ class PipelineManager:
 
 
 if __name__ == "__main__":
-    PipelineManager().execute()
+    ok = PipelineManager().execute()
+    raise SystemExit(0 if ok else 1)

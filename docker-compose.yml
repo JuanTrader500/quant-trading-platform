@@ -1,28 +1,50 @@
-version: '3.8'
-
 services:
-  # data_service:
-  #   build: ./data_service
-  #   env_file: .env
-  #   volumes:
-  #     - ./data_service/pipeline/data:/app/pipeline/data
-  #   networks:
-  #     - sp500_network
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: data-service-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432" # se pone el el puerto 5433 para no interferir con una instalación local de postgres que use el 5432
+    volumes:
+      # Volumen con nombre: aquí vive el archivo físico de la base de
+      # datos. Persiste aunque el contenedor se apague, se reinicie o
+      # se borre (docker rm) — solo se pierde con un `docker volume rm`
+      # explícito.
+      - timescale-data:/var/lib/postgresql/data
+      # Cualquier .sql en /docker-entrypoint-initdb.d se ejecuta
+      # automáticamente la PRIMERA vez que el volumen está vacío (o
+      # sea, la primera vez que se crea el contenedor). Así el esquema
+      # completo (extensión, tablas, seed) se aplica solo, sin pasos
+      # manuales.
+      - ./data_service/docs/data_service_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  # ml_service:
-  #   build: ./ml_service
-  #   env_file: .env
-  #   volumes:
-  #     - ./ml_service/artifacts:/app/artifacts
-  #   networks:
-  #     - sp500_network
+  data_service:
+    build: ./data_service
+    container_name: data-service-app
+    restart: unless-stopped
+    environment:
+      # Dentro de la red de docker-compose, el host de la base de datos
+      # es el NOMBRE DEL SERVICIO ("timescaledb"), no "localhost".
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/${POSTGRES_DB}
+      DEFAULT_START_DATE: ${DEFAULT_START_DATE}
+      PIPELINE_VERSION: ${PIPELINE_VERSION}
+      DATA_SERVICE_LOG_DIR: /app/logs
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs/data_service:/app/logs
+    depends_on:
+      timescaledb:
+        condition: service_healthy
 
-  # web_service:
-  #   build: ./web_service
-  #   env_file: .env
-  #   networks:
-  #     - sp500_network
-
-networks:
-  sp500_network:
-    driver: bridge
+volumes:
+  timescale-data:
