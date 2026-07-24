@@ -1,0 +1,32 @@
+name: DataPipeline Tests
+
+on:
+  push:
+    paths:
+      - "data_service/**"
+  pull_request:
+    paths:
+      - "data_service/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11" # Corregido: Versión estable para producción
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r data_service/tests/requirements-test.txt
+
+      - name: Ejecutar tests del DataPipeline
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/data_service
+          pytest data_service/tests -q
