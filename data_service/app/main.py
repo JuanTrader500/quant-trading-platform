@@ -17,9 +17,7 @@ consume el Web Service / ML Service dentro de la red interna.
 """
 
 from datetime import date
-
 from fastapi import FastAPI, HTTPException, Query
-
 from pipeline import db
 from pipeline.pipeline_manager import PipelineManager
 from pipeline.registry import PAIRS
