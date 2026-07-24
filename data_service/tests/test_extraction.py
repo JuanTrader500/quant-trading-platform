@@ -5,7 +5,7 @@ from data_service.pipeline.registry import AssetInfo
 
 def test_download_asset_success():
     extractor = DataExtractor()
-    asset = AssetInfo(name="SP500", ticker="^GSPC", description="S&P 500 Index")
+    asset = AssetInfo(name="sp500", ticker="^GSPC", is_volatility=False)
     
     # Mock yfinance.download and db.py
     with patch("data_service.pipeline.extraction.yf.download") as mock_yf, \
@@ -30,27 +30,23 @@ def test_download_asset_success():
 
 def test_download_asset_api_error():
     extractor = DataExtractor()
-    asset = AssetInfo(name="SP500", ticker="^GSPC", description="S&P 500 Index")
+    asset = AssetInfo(name="sp500", ticker="^GSPC", is_volatility=False)
     
     with patch("data_service.pipeline.extraction.yf.download") as mock_yf, \
          patch("data_service.pipeline.extraction.db") as mock_db:
         
         mock_yf.side_effect = Exception("Yahoo Finance API Error")
+        import pandas as pd
+        mock_db.get_latest_raw_date.return_value = pd.Timestamp("2022-12-31").date()
         
         result = extractor.download_asset(asset)
         
         assert result is False
-        mock_db.log_run.assert_called_with(
-            "extraction", status="error", ticker=asset.ticker,
-            # date_from and date_to are calculated inside, so we check status
-            # using any() or just checking the first arg
-            # but let's just verify that log_run was called.
-            # we can be more specific if we want
-        )
-        # Correcting call check for log_run
+        mock_db.log_run.assert_called_once()
         args, kwargs = mock_db.log_run.call_args
         assert args[0] == "extraction"
         assert kwargs["status"] == "error"
+        assert kwargs["ticker"] == asset.ticker
 
 def test_download_all_calls_download_asset():
     extractor = DataExtractor()

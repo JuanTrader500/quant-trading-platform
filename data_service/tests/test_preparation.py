@@ -22,13 +22,15 @@ def test_engineer_features_math():
     features_df = DataPreparer._engineer_features(df)
 
     # 1. Check target_range_next_day: (log(high_t+1) - log(low_t+1))
-    # For row 0, it should be (log(idx_high[1]) - log(idx_low[1]))
-    expected_target = np.log(106) - np.log(96)
+    first_date = features_df.index[0]
+    first_idx = df.index[df["date"] == first_date][0]
+    expected_target = np.log(df.loc[first_idx + 1, "idx_high"]) - np.log(df.loc[first_idx + 1, "idx_low"])
     assert np.isclose(features_df["target_range_next_day"].iloc[0], expected_target)
 
     # 2. Check main_log_return: log(close_t) - log(close_t-1)
-    # For row 1, it should be log(103) - log(102)
-    expected_return = np.log(103) - np.log(102)
+    second_date = features_df.index[1]
+    second_idx = df.index[df["date"] == second_date][0]
+    expected_return = np.log(df.loc[second_idx, "idx_close"]) - np.log(df.loc[second_idx - 1, "idx_close"])
     assert np.isclose(features_df["main_log_return"].iloc[1], expected_return)
 
     # 3. Check target for the last row is NaN (RF03)
