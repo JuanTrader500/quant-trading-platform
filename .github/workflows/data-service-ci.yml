@@ -28,5 +28,5 @@ jobs:
 
       - name: Ejecutar tests del DataPipeline
         run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          export PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/data_service
           pytest data_service/tests -q
