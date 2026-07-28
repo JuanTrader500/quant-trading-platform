@@ -118,3 +118,29 @@ def run_retraining(pair_code: str = DATA_SERVICE_PAIR_CODE) -> RetrainOutcome:
         f"(RMSE nuevo={new_metrics.rmse:.6f}, RMSE anterior={current_rmse})."
     )
     return RetrainOutcome(promoted=promote, best_model_name=best_name, mlflow_run_id=run_id, training_rows=len(df))
+
+def main() -> None:
+    """Permite disparar un reentrenamiento manual desde la línea de
+    comandos (útil la primera vez, antes de que exista cualquier
+    modelo, o para pruebas fuera de la cadencia mensual del
+    scheduler):
+
+        docker compose exec ml_service python -m training.retrain_manager
+        docker compose exec ml_service python -m training.retrain_manager --pair-code SP500_VIX
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Reentrenamiento manual del ML Service")
+    parser.add_argument("--pair-code", default=DATA_SERVICE_PAIR_CODE)
+    args = parser.parse_args()
+
+    outcome = run_retraining(pair_code=args.pair_code)
+    print(
+        f"Reentrenamiento completado -> promovido={outcome.promoted}, "
+        f"modelo={outcome.best_model_name}, mlflow_run_id={outcome.mlflow_run_id}, "
+        f"filas_entrenamiento={outcome.training_rows}"
+    )
+
+
+if __name__ == "__main__":
+    main()
