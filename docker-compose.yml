@@ -46,5 +46,67 @@ services:
       timescaledb:
         condition: service_healthy
 
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.16.2
+    container_name: mlflow-server
+    restart: unless-stopped
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:///mlflow-data/mlflow.db
+      --default-artifact-root /mlflow-data/artifacts
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow-data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ml_service:
+    build: ./ml_service
+    container_name: ml-service-app
+    restart: unless-stopped
+    environment:
+      DATA_SERVICE_BASE_URL: http://data_service:8000
+      DATA_SERVICE_PAIR_CODE: ${DATA_SERVICE_PAIR_CODE:-SP500_VIX}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY}
+      ML_SERVICE_API_KEY: ${ML_SERVICE_API_KEY}
+      REQUIRE_API_KEY: "true"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-sp500_volatility}
+      MLFLOW_REGISTERED_MODEL_NAME: ${MLFLOW_REGISTERED_MODEL_NAME:-sp500_range_predictor}
+      PREDICTIONS_DB_PATH: /app/data/predictions.db
+      HISTORICAL_BACKTEST_START: ${HISTORICAL_BACKTEST_START:-2022-01-01}
+      HISTORICAL_BACKTEST_OUTPUT_DIR: /app/data/exports
+      MODEL_LOCAL_DIR: /app/data/models
+      RETRAIN_SCHEDULE_DAY: "1"
+      RETRAIN_SCHEDULE_HOUR: "3"
+      RETRAIN_SCHEDULE_MINUTE: "0"
+      RETRAIN_SCHEDULE_TIMEZONE: ${RETRAIN_SCHEDULE_TIMEZONE:-America/Bogota}
+      SCHEDULER_ENABLED: "true"
+      ML_SERVICE_LOG_DIR: /app/logs
+    ports:
+      # RNF20: en producción real, esto no debería mapearse al host
+      # (el ML Service no debe exponerse a internet). Se deja aquí
+      # solo para que puedas probarlo manualmente con curl/Swagger
+      # mientras lo revisas.
+      - "8001:8001"
+    volumes:
+      - ml-service-data:/app/data
+      - ./logs/ml_service:/app/logs:Z
+    depends_on:
+      data_service:
+        condition: service_started
+      mlflow:
+        condition: service_healthy
+
 volumes:
   timescale-data:
+  mlflow-data:
+  ml-service-data:
+  
