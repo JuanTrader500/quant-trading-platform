@@ -130,7 +130,16 @@ def fetch_raw_ohlc(ticker: str) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"])
     return df
 
-
+def fetch_latest_raw_close(ticker: str) -> dict | None:
+    """Último cierre crudo conocido de un ticker. Usado por el ML
+    Service para anclar la conversión de sus predicciones (log-range)
+    a puntos del activo."""
+    with _connection() as conn:
+        row = conn.execute(
+            text("SELECT date, close FROM raw_ohlc WHERE ticker = :ticker ORDER BY date DESC LIMIT 1"),
+            {"ticker": ticker},
+        ).mappings().first()
+    return dict(row) if row else None
 # ---------------------------------------------------------------------
 # features — datos procesados (caso de uso 2 / RF02, RF03)
 # ---------------------------------------------------------------------

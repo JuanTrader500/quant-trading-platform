@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS predictions (
     predicted_at        TEXT NOT NULL,          -- timestamp UTC de cuándo se generó
     pair_code           TEXT NOT NULL,
     mode                TEXT NOT NULL CHECK (mode IN ('testing', 'automatic', 'backtest')),
-    predicted_range     REAL NOT NULL,          -- RF16: rango porcentual esperado
+    predicted_log_range REAL NOT NULL,          -- log(High/Low) predicho, escala del modelo (RF16)
+    predicted_range_pct REAL NOT NULL,          -- e^predicted_log_range - 1
+    anchor_close        REAL NOT NULL,          -- cierre real usado para anclar la conversión a puntos
+    predicted_range_points REAL NOT NULL,       -- anchor_close * predicted_range_pct
     actual_range        REAL,                   -- se completa después, cuando se conoce (RF24)
     model_name          TEXT NOT NULL,
     model_version        TEXT,

@@ -29,9 +29,14 @@ class TestingPredictionRequest(_DomainModel):
 
 
 class PredictionResponse(_DomainModel):
-    """RF16: salida mínima de una predicción."""
+    """RF16: salida de una predicción, en escala log (la que entrena
+    y valida el modelo) y ya convertida a puntos del activo (ver
+    `features/scale_conversion.py`)."""
 
-    predicted_range: float
+    predicted_log_range: float = Field(description="log(High/Low) predicho para target_date, tal cual lo entrena el modelo.")
+    predicted_range_pct: float = Field(description="Ancho relativo del rango: e^predicted_log_range - 1.")
+    anchor_close: float = Field(description="Cierre real usado como referencia de precio para la conversión a puntos.")
+    predicted_range_points: float = Field(description="anchor_close * predicted_range_pct: el rango esperado, en puntos del activo.")
     target_date: date
     model_used: str
     model_version: str | None = None

@@ -116,3 +116,18 @@ def get_training_dataset(
         params["date_to"] = date_to.isoformat()
     response = _get_with_retries("/features/history", params=params)
     return response.json()
+
+
+def get_latest_raw_close(pair_code: str) -> dict:
+    """Último cierre crudo conocido del índice principal del par (no
+    del índice de volatilidad), usado como ancla para convertir las
+    predicciones (log-range) a puntos del activo.
+
+    NOTA: requiere el endpoint `GET /raw/latest` en el Data Service,
+    que no existía en la versión que me compartiste — ver el archivo
+    `data_service_CAMBIOS_raw_latest.md` con las 2 ediciones exactas
+    (`db.py` y `app/main.py`) que hay que aplicar allá para que esta
+    llamada funcione. Devuelve `{"pair_code", "ticker", "date", "close"}`.
+    """
+    response = _get_with_retries("/raw/latest", params={"pair_code": pair_code})
+    return response.json()

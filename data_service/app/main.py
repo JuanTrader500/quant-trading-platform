@@ -20,7 +20,7 @@ from datetime import date
 from fastapi import FastAPI, HTTPException, Query
 from pipeline import db
 from pipeline.pipeline_manager import PipelineManager
-from pipeline.registry import PAIRS
+from pipeline.registry import ASSETS, PAIRS
 
 app = FastAPI(title="Data Service", version="1.0.0")
 
@@ -60,6 +60,25 @@ def latest_features(pair_code: str = Query(..., description="Ej. SP500_VIX, NASD
         raise HTTPException(status_code=404, detail="Sin features calculadas todavía para este par.")
     return row
 
+@app.get("/raw/latest")
+def latest_raw_close(pair_code: str = Query(..., description="Ej. SP500_VIX, NASDAQ_VXN")) -> dict:
+    """Último cierre crudo conocido del índice PRINCIPAL de un par
+    (no del índice de volatilidad). Usado por el ML Service para
+    anclar la conversión de log-range a puntos del activo."""
+    if pair_code not in PAIRS:
+        raise HTTPException(status_code=404, detail=f"pair_code desconocido: {pair_code}")
+
+    ticker = ASSETS[PAIRS[pair_code].index_asset].ticker
+    row = db.fetch_latest_raw_close(ticker)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Sin datos crudos todavía para este par.")
+
+    return {
+        "pair_code": pair_code,
+        "ticker": ticker,
+        "date": row["date"].isoformat() if hasattr(row["date"], "isoformat") else str(row["date"]),
+        "close": float(row["close"]),
+    }
 
 @app.get("/features/history")
 def features_history(

@@ -40,6 +40,7 @@ from core.logging_config import get_logger, set_trace_id
 from core.settings import DATA_SERVICE_PAIR_CODE, HISTORICAL_BACKTEST_OUTPUT_DIR, SCHEDULER_ENABLED
 from features.feature_engineering import FEATURE_COLUMNS, build_testing_features
 from features.ohlc_validation import InvalidOHLCError
+from features.scale_conversion import convert_log_range_to_points
 from predictions import db as predictions_db
 from predictions.mlflow_logger import log_daily_prediction
 from registry import model_registry
@@ -111,17 +112,23 @@ def predict_testing(payload: TestingPredictionRequest) -> PredictionResponse:
         raise HTTPException(status_code=502, detail="No se pudo obtener contexto del Data Service.") from exc
 
     x = [[features[col] for col in FEATURE_COLUMNS]]
-    predicted_range = float(current.model.predict(x)[0])
+    predicted_log_range = float(current.model.predict(x)[0])
     target_date = payload.as_of + timedelta(days=1)
+
+    # Ancla = el Close ingresado manualmente para `as_of` (RF14 ya lo
+    # trae, no requiere ninguna llamada extra al Data Service).
+    converted = convert_log_range_to_points(predicted_log_range, anchor_close=payload.close)
 
     predictions_db.insert_prediction(
         target_date=target_date.isoformat(), pair_code=pair_code, mode="testing",
-        predicted_range=predicted_range, model_name=current.model_name,
-        model_version=current.model_version, mlflow_run_id=current.mlflow_run_id, trace_id=None,
+        predicted_log_range=converted.log_range, predicted_range_pct=converted.range_pct,
+        anchor_close=converted.anchor_close, predicted_range_points=converted.range_points,
+        model_name=current.model_name, model_version=current.model_version,
+        mlflow_run_id=current.mlflow_run_id, trace_id=None,
     )
 
     return PredictionResponse(
-        predicted_range=predicted_range, target_date=target_date,
+        **converted.to_dict(), target_date=target_date,
         model_used=current.model_name, model_version=current.model_version, mode="testing",
     )
 
@@ -146,20 +153,38 @@ def predict_tomorrow(pair_code: str = Query(default=DATA_SERVICE_PAIR_CODE)) -> 
     if missing:
         raise HTTPException(status_code=422, detail=f"Faltan features en el Data Service: {missing}")
 
+    try:
+        raw = data_service_client.get_latest_raw_close(pair_code)
+    except DataServiceNotFoundError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "El Data Service no expone /raw/latest todavía (necesario para anclar la "
+                "conversión a puntos). Agrega ese endpoint en data_service — ver "
+                "data_service_CAMBIOS_raw_latest.md."
+            ),
+        ) from exc
+    except DataServiceUnavailableError as exc:
+        raise HTTPException(status_code=502, detail="El Data Service no está disponible en este momento.") from exc
+
     x = [[latest[col] for col in FEATURE_COLUMNS]]
-    predicted_range = float(current.model.predict(x)[0])
+    predicted_log_range = float(current.model.predict(x)[0])
     last_known_date = date.fromisoformat(str(latest["date"])[:10])
     target_date = last_known_date + timedelta(days=1)
 
+    converted = convert_log_range_to_points(predicted_log_range, anchor_close=raw["close"])
+
     predictions_db.insert_prediction(
         target_date=target_date.isoformat(), pair_code=pair_code, mode="automatic",
-        predicted_range=predicted_range, model_name=current.model_name,
-        model_version=current.model_version, mlflow_run_id=current.mlflow_run_id, trace_id=None,
+        predicted_log_range=converted.log_range, predicted_range_pct=converted.range_pct,
+        anchor_close=converted.anchor_close, predicted_range_points=converted.range_points,
+        model_name=current.model_name, model_version=current.model_version,
+        mlflow_run_id=current.mlflow_run_id, trace_id=None,
     )
-    log_daily_prediction(target_date.isoformat(), predicted_range)
+    log_daily_prediction(target_date.isoformat(), converted.range_points)
 
     return PredictionResponse(
-        predicted_range=predicted_range, target_date=target_date,
+        **converted.to_dict(), target_date=target_date,
         model_used=current.model_name, model_version=current.model_version, mode="automatic",
     )
 

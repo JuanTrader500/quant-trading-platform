@@ -98,7 +98,7 @@ services:
       - "8001:8001"
     volumes:
       - ml-service-data:/app/data
-      - ./logs/ml_service:/app/logs
+      - ./logs/ml_service:/app/logs:Z
     depends_on:
       data_service:
         condition: service_started

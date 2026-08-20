@@ -42,7 +42,10 @@ def insert_prediction(
     target_date: str,
     pair_code: str,
     mode: str,
-    predicted_range: float,
+    predicted_log_range: float,
+    predicted_range_pct: float,
+    anchor_close: float,
+    predicted_range_points: float,
     model_name: str,
     model_version: str | None,
     mlflow_run_id: str | None,
@@ -52,16 +55,20 @@ def insert_prediction(
         cursor = conn.execute(
             """
             INSERT INTO predictions
-                (target_date, predicted_at, pair_code, mode, predicted_range,
+                (target_date, predicted_at, pair_code, mode,
+                 predicted_log_range, predicted_range_pct, anchor_close, predicted_range_points,
                  model_name, model_version, mlflow_run_id, trace_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 target_date,
                 datetime.now(timezone.utc).isoformat(),
                 pair_code,
                 mode,
-                predicted_range,
+                predicted_log_range,
+                predicted_range_pct,
+                anchor_close,
+                predicted_range_points,
                 model_name,
                 model_version,
                 mlflow_run_id,
